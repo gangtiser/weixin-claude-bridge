@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Logs
+logs/
+*.log
+
+# Auth credentials
+auth.json
+
+# Environment variables
+.env
+.env.local
+
+# OS files
+.DS_Store
+
+# Claude workspace
+.claude/
+
+# Temporary files
+/tmp/
+*.tmp
