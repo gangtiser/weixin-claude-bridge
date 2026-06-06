@@ -1,20 +1,25 @@
 {
   "name": "weixin-claude-bridge",
-  "version": "1.0.0",
-  "description": "Bridge between WeChat (via iLink API) and Claude Code SDK",
-  "main": "dist/index.js",
+  "version": "2.0.0",
+  "description": "WeChat Channel plugin for Claude Code via iLink Bot API",
+  "type": "module",
+  "bin": { "weixin-claude-bridge": "./cli.mjs" },
+  "files": ["cli.mjs", "dist/", ".claude-plugin/", "README.md", "LICENSE"],
+  "engines": { "node": ">=18" },
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "tsx src/index.ts"
+    "build": "esbuild src/index.ts --bundle --format=esm --platform=node --target=node18 --outfile=dist/index.js --external:silk-wasm",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
-    "qrcode-terminal": "^0.12.0",
-    "silk-wasm": "^3.7.1"
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "qrcode-terminal": "^0.12.0"
   },
+  "optionalDependencies": { "silk-wasm": "^3.7.1" },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/qrcode-terminal": "^0.12.0",
+    "esbuild": "^0.24.0",
     "tsx": "^4.7.0",
     "typescript": "^5.7.0"
   }
