@@ -19,7 +19,7 @@ async function main() {
   // ---- channel start (spawned by Claude Code over stdio) ----
   const auth = store.loadAuth();
   if (!auth) { logError("未登录。请先运行: weixin-claude-bridge login"); process.exit(1); }
-  if (!acquireLock()) process.exit(1);   // 单实例锁：已有活实例则拒绝，避免两进程抢同一账号/写花状态目录
+  if (!(await acquireLock())) process.exit(1);   // 单实例锁：接管旧实例（最新启动者胜）；仅当杀不掉旧实例才放弃，避免两进程抢同一账号/写花状态目录
   const api = new WeixinApi(auth);
   const client = new WeixinChannelClient(api);
   const server = createMcpServer(api, () => store.loadAuth()?.userId);
