@@ -29,6 +29,17 @@ node cli.mjs start     # run the stdio MCP server (normally spawned BY Claude Co
 
 Run the channel: `claude --dangerously-load-development-channels server:wechat` (after `install`) or `plugin:weixin-claude-bridge@<marketplace>` (after `/plugin install`).
 
+## Release & publishing
+
+Published to **npm** as [`weixin-claude-bridge`](https://www.npmjs.com/package/weixin-claude-bridge) and to **GitHub** at `gangtiser/weixin-claude-bridge` (`main`). Current version is in `package.json`.
+
+- **Publish:** `npm publish --registry https://registry.npmjs.org/`. The `prepublishOnly` hook rebuilds `dist/` first.
+- **Registry gotcha:** the local default npm registry may be a China mirror (`registry.npmmirror.com`), which is read-only and lags. Publishing, `npm view`, `npm whoami`, and `npx` against the real registry all need `--registry https://registry.npmjs.org/`. A freshly published version won't resolve via `npx weixin-claude-bridge` from a mirror until the mirror syncs (hours) — use the `--registry` flag for immediate use.
+- **2FA:** publishing requires two-factor auth — either pass an OTP (`npm publish --otp=<code> ...`) or put an automation / "bypass 2FA" granular token at `//registry.npmjs.org/:_authToken` in **`~/.npmrc`** (user-level only — never a project `.npmrc`, it must not be committed or published).
+- **Versioning:** bump `version` in `package.json` before re-publishing — a published version is immutable and cannot be reused (2.0.0 is taken).
+- **What ships** (the `files` whitelist → 8 files): `cli.mjs`, `dist/index.js`, `.claude-plugin/*`, `README.md`, `LICENSE`. `src/`, `test/`, `docs/`, and `AGENTS.md` are NOT published. `dist/` is gitignored but bundled into the npm tarball by `prepublishOnly`.
+- **Install paths for users:** (a) `npx weixin-claude-bridge <cmd>`; (b) `/plugin marketplace add gangtiser/weixin-claude-bridge` then `/plugin install`. Both still require the `--dangerously-load-development-channels` launch flag (research preview, above).
+
 ## Architecture
 
 Claude Code spawns this package's `start` entry as a subprocess and talks to it over stdio. The plugin is a thin "transport + protocol translation" layer — the "brain" is the live Claude Code session.
