@@ -1,0 +1,50 @@
+import { test, beforeEach } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs"; import os from "node:os"; import path from "node:path";
+process.env.WECHAT_CHANNEL_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "wxclient-"));
+const { WeixinChannelClient } = await import("../src/weixin/client.ts");
+const store = await import("../src/weixin/store.ts");
+const { bindOwner } = await import("../src/weixin/allowlist.ts");
+const { chatIdFor } = await import("../src/weixin/ids.ts");
+
+beforeEach(() => { for (const f of fs.readdirSync(process.env.WECHAT_CHANNEL_DIR!)) fs.rmSync(path.join(process.env.WECHAT_CHANNEL_DIR!, f), { recursive:true, force:true }); });
+
+function userMsg(id: string, text: string, sender = "owner@im.wechat") {
+  return { message_id: id, message_type: 1, from_user_id: sender, context_token: "ctx-" + id, item_list: [{ type: 1, text_item: { text } }] };
+}
+
+test("non-allowlisted sender is dropped (no pending, no emit)", async () => {
+  const api = { getUpdates: async () => ({ msgs: [userMsg("m1","hi","stranger@im.wechat")], cursor: "1", errcode: 0 }), sendMessage: async()=>{}, sendTyping: async()=>{} };
+  const c = new WeixinChannelClient(api); const emits: unknown[] = []; c.on("message", e => emits.push(e));
+  await c.pollOnce();
+  assert.equal(emits.length, 0); assert.equal(store.listPending().length, 0);
+});
+
+test("allowlisted msg: context_token+pending persisted, cursor advanced, then emit", async () => {
+  bindOwner("owner@im.wechat");
+  const api = { getUpdates: async () => ({ msgs: [userMsg("m1","hi")], cursor: "C1", errcode: 0 }), sendMessage: async()=>{}, sendTyping: async()=>{} };
+  const c = new WeixinChannelClient(api); const emits: any[] = []; c.on("message", e => emits.push(e));
+  await c.pollOnce();
+  const cid = chatIdFor("owner@im.wechat");
+  assert.equal(store.getContext(cid)?.contextToken, "ctx-m1");
+  assert.equal(store.listPending()[0]?.messageId, "m1");
+  assert.equal(store.loadCursor(), "C1");
+  assert.equal(emits[0].meta.chat_id, cid);
+  assert.equal(emits[0].meta.message_id, "m1");
+  assert.equal(emits[0].meta.can_reply, "true");
+});
+
+test("dedup: same message_id not processed twice", async () => {
+  bindOwner("owner@im.wechat");
+  const api = { getUpdates: async () => ({ msgs: [userMsg("m1","hi"), userMsg("m1","hi")], cursor: "C1", errcode: 0 }), sendMessage: async()=>{}, sendTyping: async()=>{} };
+  const c = new WeixinChannelClient(api); const emits: unknown[]=[]; c.on("message", e=>emits.push(e));
+  await c.pollOnce();
+  assert.equal(emits.length, 1); assert.equal(store.listPending().length, 1);
+});
+
+test("errcode -14 emits sessionExpired", async () => {
+  const api = { getUpdates: async () => ({ msgs: [], cursor: "", errcode: -14 }), sendMessage: async()=>{}, sendTyping: async()=>{} };
+  const c = new WeixinChannelClient(api); let expired = false; c.on("sessionExpired", () => expired = true);
+  await c.pollOnce();
+  assert.equal(expired, true);
+});
