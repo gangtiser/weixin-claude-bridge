@@ -2,6 +2,7 @@
   "name": "weixin-claude-bridge",
   "version": "2.0.0",
   "description": "WeChat Channel plugin for Claude Code via iLink Bot API",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "weixin-claude-bridge": "./cli.mjs"

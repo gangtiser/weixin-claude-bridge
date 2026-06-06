@@ -24,3 +24,9 @@ auth.json
 # Temporary files
 /tmp/
 *.tmp
+
+# Internal design / plan docs (kept local, not published)
+docs/
+
+# Agent instruction files (kept local, not published)
+AGENTS.md
