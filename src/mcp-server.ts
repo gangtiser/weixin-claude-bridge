@@ -4,6 +4,7 @@ import { z } from "zod";
 import * as store from "./weixin/store.ts";
 import { isAllowed } from "./weixin/allowlist.ts";
 import { stripMarkdown, splitText } from "./weixin/parse.ts";
+import { chatIdFor } from "./weixin/ids.ts";
 import { MAX_MESSAGE_LENGTH, MIN_SEND_INTERVAL_MS, CHANNEL_NAME, log, logError, errorText } from "./config.ts";
 import type { IWeixinApi } from "./weixin/types.ts";
 
@@ -74,7 +75,8 @@ export function createMcpServer(api: IWeixinApi, ownerId: () => string | undefin
   });
   server.setNotificationHandler(PermReq, async ({ params }) => {
     const owner = ownerId(); if (!owner || !isAllowed(owner)) return;
-    const ctx = store.getLatestContext();
+    // 优先路由到 owner 的会话（id 匹配时，修多白名单误投）；id 不一致的单 owner 场景回退到最近活跃会话
+    const ctx = store.getContext(chatIdFor(owner)) ?? store.getLatestContext();
     if (!ctx) { logError("权限转发无 context_token"); return; }
     try {
       await api.sendMessage(ctx.senderId, `Claude 要执行 ${params.tool_name}：${params.description}\n${params.input_preview ? "输入: " + params.input_preview + "\n" : ""}回复 "yes ${params.request_id}" 或 "no ${params.request_id}"`, ctx.contextToken);

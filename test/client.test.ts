@@ -48,3 +48,10 @@ test("errcode -14 emits sessionExpired", async () => {
   await c.pollOnce();
   assert.equal(expired, true);
 });
+
+test("sessionExpired emits only once across repeated -14 polls (no hot-loop flood)", async () => {
+  const api = { getUpdates: async () => ({ msgs: [], cursor: "", errcode: -14 }), sendMessage: async()=>{}, sendTyping: async()=>{} };
+  const c = new WeixinChannelClient(api); let n = 0; c.on("sessionExpired", () => n++);
+  const r1 = await c.pollOnce(); const r2 = await c.pollOnce();
+  assert.equal(r1, "expired"); assert.equal(r2, "expired"); assert.equal(n, 1);
+});

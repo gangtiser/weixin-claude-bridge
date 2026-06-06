@@ -25,10 +25,12 @@ async function main() {
   log("MCP channel 连接就绪");
 
   client.on("message", async ({ content, meta }) => {
-    // 权限 verdict 拦截：owner 回 "yes/no <id>" → 发 verdict，不转给 Claude，并清出 inbox
-    if (getPendingPermId()) {
+    // 权限 verdict 拦截：仅当回复的 id 与待决请求匹配，才发 verdict、清状态、清出 inbox。
+    // 打错 id 时不清状态（真请求保持开放，等正确回复），按普通消息转发。
+    const pid = getPendingPermId();
+    if (pid) {
       const v = parseVerdict(content);
-      if (v) {
+      if (v && v.request_id === pid) {
         await server.notification({ method: "notifications/claude/channel/permission", params: v as any });
         clearPendingPermId();
         if (meta.message_id) await store.removePending([meta.message_id]);

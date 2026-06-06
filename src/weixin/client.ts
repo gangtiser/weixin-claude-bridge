@@ -6,7 +6,7 @@ import { transcribeVoice } from "./voice.ts";
 import { chatIdFor } from "./ids.ts";
 import * as store from "./store.ts";
 import { SESSION_EXPIRED_ERRCODE } from "./types.ts";
-import { DEDUP_RING, MAX_CONSECUTIVE_FAILURES, BACKOFF_DELAY_MS, RETRY_DELAY_MS, errorText, log, logError } from "../config.ts";
+import { DEDUP_RING, MAX_CONSECUTIVE_FAILURES, BACKOFF_DELAY_MS, RETRY_DELAY_MS, REPLAY_MAX, errorText, log, logError } from "../config.ts";
 import type { IWeixinApi, PendingEvent } from "./types.ts";
 
 export interface ChannelMessage { content: string; meta: Record<string, string> }
@@ -14,17 +14,23 @@ export interface ChannelMessage { content: string; meta: Record<string, string> 
 export class WeixinChannelClient extends EventEmitter {
   private running = false;
   private seen = new Set<string>();
+  private sessionExpiredNotified = false;
   constructor(private api: IWeixinApi) { super(); for (const e of store.listPending()) this.seen.add(e.messageId); }
 
   private remember(id: string) { this.seen.add(id); if (this.seen.size > DEDUP_RING) this.seen.delete(this.seen.values().next().value as string); }
 
-  async pollOnce(): Promise<void> {
+  async pollOnce(): Promise<"ok" | "expired"> {
     const cursor = store.loadCursor();
     const r = await this.api.getUpdates(cursor);
-    if (r.errcode === SESSION_EXPIRED_ERRCODE) { this.emit("sessionExpired"); return; }
+    if (r.errcode === SESSION_EXPIRED_ERRCODE) {
+      if (!this.sessionExpiredNotified) { this.sessionExpiredNotified = true; this.emit("sessionExpired"); }
+      return "expired";
+    }
     if (r.errcode && r.errcode !== 0) throw new Error(`getUpdates errcode=${r.errcode}`);
+    this.sessionExpiredNotified = false;   // 成功一次即重置，下次过期可再提醒
     for (const msg of r.msgs) await this.ingest(msg);
     if (r.cursor && r.cursor !== cursor) await store.saveCursor(r.cursor);
+    return "ok";
   }
 
   private async ingest(msg: any): Promise<void> {
@@ -70,9 +76,13 @@ export class WeixinChannelClient extends EventEmitter {
 
   async start(): Promise<void> {
     this.running = true; let fails = 0;
-    this.replayPending(50);
+    this.replayPending(REPLAY_MAX);
     while (this.running) {
-      try { await this.pollOnce(); fails = 0; }
+      try {
+        const r = await this.pollOnce();
+        if (r === "expired") await sleep(BACKOFF_DELAY_MS);   // 过期：退避，避免热循环刷屏（待用户重新 login + 重启）
+        else fails = 0;
+      }
       catch (e) { fails++; logError(`poll 失败(${fails}): ${errorText(e)}`); await sleep(fails >= MAX_CONSECUTIVE_FAILURES ? (fails = 0, BACKOFF_DELAY_MS) : RETRY_DELAY_MS); }
     }
   }
