@@ -1,1 +1,1 @@
-{ "wechat": { "command": "npx", "args": ["-y", "--registry", "https://registry.npmjs.org/", "weixin-claude-bridge", "start"] } }
+{ "wechat": { "command": "npx", "args": ["-y", "weixin-claude-bridge", "start"] } }

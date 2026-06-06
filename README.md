@@ -35,10 +35,10 @@ claude --dangerously-load-development-channels ...
 ```bash
 # 在 Claude Code 会话中执行：
 /plugin marketplace add gangtiser/weixin-claude-bridge
-/plugin install weixin-claude-bridge@<marketplace>
+/plugin install weixin-claude-bridge@gangtiser
 
 # 然后以如下方式启动 Claude Code：
-claude --dangerously-load-development-channels plugin:weixin-claude-bridge@<marketplace>
+claude --dangerously-load-development-channels plugin:weixin-claude-bridge@gangtiser
 ```
 
 ### 方式 B — npx / .mcp.json
@@ -53,6 +53,8 @@ npx weixin-claude-bridge install
 # 启动 Claude Code
 claude --dangerously-load-development-channels server:wechat
 ```
+
+> **国内镜像用户注意：** `npx weixin-claude-bridge` 走你本机默认的 npm registry——配了 npmmirror 等国内镜像就直接走镜像，快且无需 VPN。唯一例外：刚发布的新版本在镜像同步前（约数小时）可能解析不到，这时临时加 `--registry https://registry.npmjs.org/` 即可（如 `npx --registry https://registry.npmjs.org/ weixin-claude-bridge login`）。
 
 ---
 
@@ -131,7 +133,7 @@ npx weixin-claude-bridge <command>
 
 ```bash
 npm run build    # esbuild → dist/index.js (silk-wasm external)
-npm test         # tsx --test test/*.test.ts  (22 tests)
+npm test         # tsx --test test/*.test.ts  (33 tests)
 npm run typecheck
 ```
 
