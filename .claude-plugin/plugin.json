@@ -1,7 +1,8 @@
 {
   "name": "weixin-claude-bridge",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "微信 Channel for Claude Code（基于 iLink Bot API 的双向消息通道）",
   "author": { "name": "gangtiser" },
-  "keywords": ["wechat", "weixin", "messaging", "channel", "mcp"]
+  "keywords": ["wechat", "weixin", "messaging", "channel", "mcp"],
+  "channels": [{ "server": "wechat" }]
 }
