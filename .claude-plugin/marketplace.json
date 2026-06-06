@@ -1,5 +1,5 @@
 {
-  "name": "weixin-claude-bridge",
+  "name": "gangtiser",
   "owner": { "name": "gangtiser" },
   "plugins": [
     { "name": "weixin-claude-bridge", "source": "./", "description": "微信 Channel for Claude Code（iLink Bot API）" }
