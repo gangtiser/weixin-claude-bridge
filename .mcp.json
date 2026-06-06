@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "wechat": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "weixin-claude-bridge",
+        "start"
+      ]
+    }
+  }
+}
