@@ -30,3 +30,4 @@ docs/
 
 # Agent instruction files (kept local, not published)
 AGENTS.md
+CLAUDE.md
