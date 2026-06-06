@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "weixin-claude-bridge": "./cli.mjs"
+    "weixin-claude-bridge": "cli.mjs"
   },
   "files": [
     "cli.mjs",
