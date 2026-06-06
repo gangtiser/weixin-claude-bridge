@@ -20,7 +20,8 @@
   "scripts": {
     "build": "esbuild src/index.ts --bundle --format=esm --platform=node --target=node18 --outfile=dist/index.js --external:silk-wasm",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
