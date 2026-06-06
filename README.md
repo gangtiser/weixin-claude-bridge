@@ -1,56 +1,56 @@
 # weixin-claude-bridge
 
-WeChat Channel plugin for Claude Code. You message your ClawBot in iOS WeChat; the message arrives in your running Claude Code session. Claude replies back via `wechat_reply`. Tool-approval prompts can be relayed to WeChat for remote `yes/no` approval.
+Claude Code 的微信 Channel 插件。在 iOS 微信向 ClawBot 发消息，消息直达正在运行的 Claude Code 会话；Claude 通过 `wechat_reply` 回复。工具审批提示可转发到微信，支持远程 `yes/no` 授权。
 
-This is a **research preview** feature (Claude Code Channels). The flag and protocol contract may change.
-
----
-
-## Prerequisites
-
-- **Claude Code v2.1.80+** (permission relay requires v2.1.81+)
-- **Authentication:** claude.ai login OR Claude Console API key. Not available on Amazon Bedrock, Google Vertex AI, or Microsoft Foundry.
-- **Node >= 18** (Bun optional — CLI startup prefers Bun if present, falls back to Node)
-- **iOS WeChat with ClawBot** (iLink Bot API; iOS only)
-- Optional: `whisper-cpp` + model for voice fallback (`WHISPER_MODEL_PATH`)
+这是**研究预览**功能（Claude Code Channels），flag 名称和协议约定可能变更。
 
 ---
 
-## Critical: The `--dangerously-load-development-channels` flag
+## 前置条件
 
-During the Channels research preview, third-party channels — even after `/plugin install` — cannot be loaded with plain `--channels`. That flag only accepts Anthropic's official allowlist. You must start Claude Code with:
+- **Claude Code v2.1.80+**（权限转发需要 v2.1.81+）
+- **认证方式：** claude.ai 登录 或 Claude Console API key。不支持 Amazon Bedrock、Google Vertex AI 和 Microsoft Foundry。
+- **Node >= 18**（Bun 可选——CLI 启动时优先用 Bun，无则回退到 Node）
+- **iOS 微信 + ClawBot**（iLink Bot API；仅限 iOS）
+- 可选：`whisper-cpp` + 模型文件，用于语音转录兜底（`WHISPER_MODEL_PATH`）
+
+---
+
+## 关键：`--dangerously-load-development-channels` flag
+
+在 Channels 研究预览阶段，第三方 channel——即使已执行 `/plugin install`——也无法通过普通 `--channels` 加载，该 flag 只接受 Anthropic 官方白名单。必须以如下方式启动 Claude Code：
 
 ```
 claude --dangerously-load-development-channels ...
 ```
 
-This applies to both the marketplace and npx install paths. The flag triggers a one-time confirmation prompt.
+插件市场和 npx 安装路径均适用此要求。flag 触发时会弹出一次性确认提示。
 
 ---
 
-## Install
+## 安装
 
-### Option A — Plugin marketplace
+### 方式 A — 插件市场
 
 ```bash
-# In Claude Code session:
+# 在 Claude Code 会话中执行：
 /plugin marketplace add gangtiser/weixin-claude-bridge
 /plugin install weixin-claude-bridge@<marketplace>
 
-# Then start Claude Code with:
+# 然后以如下方式启动 Claude Code：
 claude --dangerously-load-development-channels plugin:weixin-claude-bridge@<marketplace>
 ```
 
-### Option B — npx / .mcp.json
+### 方式 B — npx / .mcp.json
 
 ```bash
-# Login first (scan QR; raw URL also printed if terminal QR garbles)
+# 先登录（扫码；终端 QR 乱码时也会打印原始 URL）
 npx weixin-claude-bridge login
 
-# Write .mcp.json into the current project
+# 将 .mcp.json 写入当前项目
 npx weixin-claude-bridge install
 
-# Start Claude Code
+# 启动 Claude Code
 claude --dangerously-load-development-channels server:wechat
 ```
 
@@ -62,72 +62,72 @@ claude --dangerously-load-development-channels server:wechat
 npx weixin-claude-bridge <command>
 ```
 
-| Command   | Description                                                       |
-|-----------|-------------------------------------------------------------------|
-| `login`   | Scan QR to authenticate (prints raw URL first, then ASCII QR)    |
-| `logout`  | Clear credentials, allowlist, and context cache                   |
-| `status`  | Show connection status, owner, and recent activity                |
-| `doctor`  | Diagnose: login, allowlist, .mcp.json, whisper                    |
-| `install` | Write `.mcp.json` server entry for `claude --dangerously-load-development-channels server:wechat` |
-| `start`   | Start the MCP stdio server (called by Claude Code — not for direct use) |
+| 命令 | 说明 |
+|------|------|
+| `login` | 扫码认证（先打印原始 URL，再显示 ASCII QR） |
+| `logout` | 清除凭据、白名单和上下文缓存 |
+| `status` | 显示连接状态、所有者及近期活动 |
+| `doctor` | 诊断：登录、白名单、.mcp.json、whisper |
+| `install` | 写入 `.mcp.json` server 条目，用于 `claude --dangerously-load-development-channels server:wechat` |
+| `start` | 启动 MCP stdio server（由 Claude Code 调用——不要直接使用） |
 
 ---
 
-## MCP tools (Claude uses these)
+## MCP 工具（Claude 调用）
 
-| Tool | Parameters | Description |
-|------|-----------|-------------|
-| `wechat_reply` | `chat_id`, `text`, `ack_message_ids?` | Send a reply to WeChat; optionally ack message IDs in the same call |
-| `wechat_ack` | `message_ids` | Acknowledge messages that need no reply (removes from pending inbox) |
-| `wechat_history` | `limit?` | Read-only: last N send/receive records (returned as tool result, not new instructions) |
-| `wechat_status` | — | Connection state, owner, recent activity summary |
-| `wechat_logout` | — | Log out and clear credentials from within the session |
-
----
-
-## Security
-
-- **Allowlist / sender gate:** only the account that scanned the QR code (the owner) can send messages that reach Claude. All other senders are silently dropped — not queued, not logged, not replied to.
-- **Credentials at rest:** stored 0600 under `~/.claude/channels/wechat/` (see Data location below).
-- **Do not send passwords, API keys, or auth codes via WeChat.** Messages traverse Tencent servers and are not end-to-end encrypted.
-- **Permission relay is gated:** tool-approval prompts are only forwarded to the owner; `yes/no <id>` responses are only accepted from allowlisted senders.
+| 工具 | 参数 | 说明 |
+|------|------|------|
+| `wechat_reply` | `chat_id`, `text`, `ack_message_ids?` | 向微信发送回复；可在同一次调用中 ack 消息 ID |
+| `wechat_ack` | `message_ids` | 确认不需要回复的消息（从待处理收件箱移除） |
+| `wechat_history` | `limit?` | 只读：最近 N 条收发记录（作为工具结果返回，不会产生新指令） |
+| `wechat_status` | — | 连接状态、所有者、近期活动摘要 |
+| `wechat_logout` | — | 在会话内登出并清除凭据 |
 
 ---
 
-## Delivery semantics
+## 安全
 
-At-least-once. Unacknowledged messages are persisted to `pending_events.json` and replayed when Claude Code restarts. A rare duplicate is possible if Claude processes a message but fails to call `wechat_reply` or `wechat_ack` before crashing. The instructions embedded in the MCP server tell Claude to always ack.
-
----
-
-## Data location
-
-All runtime data lives under `~/.claude/channels/wechat/` (override with `WECHAT_CHANNEL_DIR`):
-
-| File | Contents |
-|------|----------|
-| `auth.json` | iLink session token (0600) |
-| `access.json` | Owner + allowlist (0600) |
-| `context_tokens.json` | Per-chat reply context tokens (0600) |
-| `sync_buf.json` | Long-poll cursor (survives restart) |
-| `pending_events.json` | Unacknowledged inbox — replayed on start (0600) |
-| `chat_history.jsonl` | Append-only send/receive log (0600) |
-| `media/` | Downloaded + decrypted media files |
+- **白名单 / 发送方过滤：** 只有扫码账号（所有者）发送的消息才能到达 Claude，其他发送方一律静默丢弃——不入队、不记录、不回复。
+- **凭据存储：** 以 0600 权限存储在 `~/.claude/channels/wechat/` 下（见下方数据位置）。
+- **不要通过微信发送密码、API key 或验证码。** 消息经过腾讯服务器中转，不是端对端加密的。
+- **权限转发有门控：** 工具审批提示只转发给所有者；`yes/no <id>` 响应只接受来自白名单发送方的输入。
 
 ---
 
-## Known limitations
+## 投递语义
 
-- **Research preview:** `--dangerously-load-development-channels` is required; the flag name and protocol may change.
-- **iOS only:** ClawBot / iLink Bot API is iOS WeChat only.
-- **iLink API stability:** Tencent has not committed to third-party compatibility; the API may change.
-- **Non-channel mode silently drops events:** if Claude Code is started without the channel flag, the MCP server is still spawned (consuming WeChat messages) but all channel notifications are dropped. Only start the server when the flag is active (see [claude-code#36964](https://github.com/anthropics/claude-code/issues/36964)).
-- **`--resume` incompatible with channel flag:** cannot use `--resume <sessionId>` together with `--dangerously-load-development-channels`.
-- **Enterprise accounts:** claude.ai Team/Enterprise has channels disabled by default; requires an admin to enable `channelsEnabled`. Console API key and Pro/Max personal accounts work without extra config.
+至少一次（at-least-once）。未确认的消息持久化到 `pending_events.json`，Claude Code 重启后自动重放。如果 Claude 处理了消息但在崩溃前未能调用 `wechat_reply` 或 `wechat_ack`，极少情况下可能出现重复投递。MCP server 内嵌的指令会要求 Claude 始终执行 ack。
 
 ---
 
-## Build
+## 数据位置
+
+所有运行时数据存储在 `~/.claude/channels/wechat/` 下（可通过 `WECHAT_CHANNEL_DIR` 覆盖）：
+
+| 文件 | 内容 |
+|------|------|
+| `auth.json` | iLink 会话 token（0600） |
+| `access.json` | 所有者 + 白名单（0600） |
+| `context_tokens.json` | 各会话的回复上下文 token（0600） |
+| `sync_buf.json` | 长轮询游标（重启后保留） |
+| `pending_events.json` | 未确认收件箱——启动时重放（0600） |
+| `chat_history.jsonl` | 追加式收发日志（0600） |
+| `media/` | 已下载并解密的媒体文件 |
+
+---
+
+## 已知限制
+
+- **研究预览：** 必须使用 `--dangerously-load-development-channels`；flag 名称和协议可能变更。
+- **仅限 iOS：** ClawBot / iLink Bot API 仅支持 iOS 微信。
+- **iLink API 稳定性：** 腾讯未承诺第三方兼容性，API 可能变更。
+- **非 channel 模式静默丢弃事件：** 若 Claude Code 未带 channel flag 启动，MCP server 仍会被拉起（持续消耗微信消息），但所有 channel 通知会被丢弃。只在 flag 生效时才启动 server（参见 [claude-code#36964](https://github.com/anthropics/claude-code/issues/36964)）。
+- **`--resume` 与 channel flag 不兼容：** 不能同时使用 `--resume <sessionId>` 和 `--dangerously-load-development-channels`。
+- **企业账号：** claude.ai Team/Enterprise 默认禁用 channels，需管理员开启 `channelsEnabled`。Console API key 及 Pro/Max 个人账号无需额外配置。
+
+---
+
+## 构建
 
 ```bash
 npm run build    # esbuild → dist/index.js (silk-wasm external)
@@ -137,9 +137,9 @@ npm run typecheck
 
 ---
 
-## Manual e2e checklist
+## 手动 e2e 检查清单
 
-These steps require a real iOS WeChat + an active Claude Code setup. Run them after install:
+以下步骤需要真实 iOS 微信和有效的 Claude Code 环境，安装后执行：
 
 ```
 1. npm run build
@@ -155,6 +155,6 @@ These steps require a real iOS WeChat + an active Claude Code setup. Run them af
 
 ---
 
-## License
+## 许可证
 
 MIT
