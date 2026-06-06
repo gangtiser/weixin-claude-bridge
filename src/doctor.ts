@@ -1,0 +1,18 @@
+import fs from "node:fs";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { channelDir } from "./config.ts";
+import * as store from "./weixin/store.ts";
+
+export function printDoctor(): void {
+  const auth = store.loadAuth();
+  console.log(auth?.accountId ? `✓ 微信登录：${auth.accountId}` : "✗ 微信登录：未完成，运行 login");
+  const acc = store.loadAccess();
+  console.log(acc.allowed.length ? `✓ 白名单：${acc.allowed.length} 人` : "✗ 白名单：空");
+  const mcp = path.join(process.cwd(), ".mcp.json");
+  console.log(fs.existsSync(mcp) ? "✓ .mcp.json：当前目录已配置" : "✗ .mcp.json：运行 install");
+  console.log(hasCmd("whisper-cli") && process.env.WHISPER_MODEL_PATH ? "✓ 语音兜底：whisper 可用" : "! 语音兜底：未配置（不影响微信自带转写）");
+  console.log(`状态目录：${channelDir()}`);
+  console.log("启动：claude --dangerously-load-development-channels server:wechat");
+}
+function hasCmd(c: string): boolean { try { execFileSync("/usr/bin/env", ["which", c], { stdio: "ignore" }); return true; } catch { return false; } }

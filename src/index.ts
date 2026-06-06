@@ -1,2 +1,52 @@
-// Entry point — implementation added in Phase 10
-export {};
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { WeixinApi } from "./weixin/api.ts";
+import { WeixinChannelClient } from "./weixin/client.ts";
+import { createMcpServer, getPendingPermId, clearPendingPermId } from "./mcp-server.ts";
+import { parseVerdict } from "./mcp-helpers.ts";
+import * as store from "./weixin/store.ts";
+import { log, logError } from "./config.ts";
+
+async function main() {
+  const argv = process.argv;
+  const sub = argv.includes("--cmd") ? argv[argv.indexOf("--cmd") + 1] : "start";
+
+  if (sub === "login") { const { doQrLogin } = await import("./weixin/auth.ts"); const a = await doQrLogin(); process.exit(a ? 0 : 1); }
+  if (sub === "logout") { store.clearAll(); console.log("已登出，凭据已清除"); process.exit(0); }
+  if (sub === "status") { const a = store.loadAuth(); console.log(JSON.stringify({ connected: !!a, accountId: a?.accountId, owner: a?.userId, allow: store.loadAccess().allowed.length, pending: store.listPending().length }, null, 2)); process.exit(0); }
+  if (sub === "doctor") { const { printDoctor } = await import("./doctor.ts"); printDoctor(); process.exit(0); }
+
+  // ---- channel start (spawned by Claude Code over stdio) ----
+  const auth = store.loadAuth();
+  if (!auth) { logError("未登录。请先运行: weixin-claude-bridge login"); process.exit(1); }
+  const api = new WeixinApi(auth);
+  const client = new WeixinChannelClient(api);
+  const server = createMcpServer(api, () => store.loadAuth()?.userId);
+  await server.connect(new StdioServerTransport());
+  log("MCP channel 连接就绪");
+
+  client.on("message", async ({ content, meta }) => {
+    // 权限 verdict 拦截：owner 回 "yes/no <id>" → 发 verdict，不转给 Claude，并清出 inbox
+    if (getPendingPermId()) {
+      const v = parseVerdict(content);
+      if (v) {
+        await server.notification({ method: "notifications/claude/channel/permission", params: v as any });
+        clearPendingPermId();
+        if (meta.message_id) await store.removePending([meta.message_id]);
+        return;
+      }
+    }
+    await server.notification({ method: "notifications/claude/channel", params: { content, meta } });
+  });
+  client.on("sessionExpired", async () => {
+    await server.notification({ method: "notifications/claude/channel", params: { content: "微信会话已过期，请运行 login 重新扫码。", meta: { sender: "system", chat_id: "system" } } });
+  });
+  client.on("error", (e: unknown) => logError(`client error: ${e}`));
+
+  const shutdown = () => { client.stop(); process.exit(0); };
+  process.stdin.on("end", shutdown);
+  process.stdin.on("close", shutdown);
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+  await client.start();
+}
+main().catch((e) => { logError(`fatal: ${e}`); process.exit(1); });
