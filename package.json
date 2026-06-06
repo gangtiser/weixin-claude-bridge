@@ -3,9 +3,19 @@
   "version": "2.0.0",
   "description": "WeChat Channel plugin for Claude Code via iLink Bot API",
   "type": "module",
-  "bin": { "weixin-claude-bridge": "./cli.mjs" },
-  "files": ["cli.mjs", "dist/", ".claude-plugin/", "README.md", "LICENSE"],
-  "engines": { "node": ">=18" },
+  "bin": {
+    "weixin-claude-bridge": "./cli.mjs"
+  },
+  "files": [
+    "cli.mjs",
+    "dist/",
+    ".claude-plugin/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "esbuild src/index.ts --bundle --format=esm --platform=node --target=node18 --outfile=dist/index.js --external:silk-wasm",
     "typecheck": "tsc --noEmit",
@@ -13,9 +23,12 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
-    "qrcode-terminal": "^0.12.0"
+    "qrcode-terminal": "^0.12.0",
+    "zod": "^3.25.76"
   },
-  "optionalDependencies": { "silk-wasm": "^3.7.1" },
+  "optionalDependencies": {
+    "silk-wasm": "^3.7.1"
+  },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/qrcode-terminal": "^0.12.0",
