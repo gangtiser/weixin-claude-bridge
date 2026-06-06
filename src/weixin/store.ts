@@ -55,6 +55,12 @@ export function upsertContext(chatId: string, senderId: string, contextToken: st
 export function getContext(chatId: string): ContextEntry | undefined {
   return readJson<CtxMap>("context_tokens.json", {})[chatId];
 }
+export function getLatestContext(): ContextEntry | undefined {
+  const m = readJson<CtxMap>("context_tokens.json", {});
+  let best: ContextEntry | undefined;
+  for (const e of Object.values(m)) if (!best || e.updatedAt > best.updatedAt) best = e;
+  return best;
+}
 
 export function loadCursor(): string { return readJson<{ cursor: string }>("sync_buf.json", { cursor: "" }).cursor; }
 export function saveCursor(cursor: string): Promise<void> {
