@@ -5,6 +5,7 @@ import { createMcpServer, getPendingPermId, clearPendingPermId } from "./mcp-ser
 import { parseVerdict } from "./mcp-helpers.ts";
 import * as store from "./weixin/store.ts";
 import { log, logError } from "./config.ts";
+import { acquireLock, releaseLock } from "./weixin/lock.ts";
 
 async function main() {
   const argv = process.argv;
@@ -18,6 +19,7 @@ async function main() {
   // ---- channel start (spawned by Claude Code over stdio) ----
   const auth = store.loadAuth();
   if (!auth) { logError("未登录。请先运行: weixin-claude-bridge login"); process.exit(1); }
+  if (!acquireLock()) process.exit(1);   // 单实例锁：已有活实例则拒绝，避免两进程抢同一账号/写花状态目录
   const api = new WeixinApi(auth);
   const client = new WeixinChannelClient(api);
   const server = createMcpServer(api, () => store.loadAuth()?.userId);
@@ -44,7 +46,7 @@ async function main() {
   });
   client.on("error", (e: unknown) => logError(`client error: ${e}`));
 
-  const shutdown = () => { client.stop(); process.exit(0); };
+  const shutdown = () => { releaseLock(); client.stop(); process.exit(0); };
   process.stdin.on("end", shutdown);
   process.stdin.on("close", shutdown);
   process.on("SIGINT", shutdown);
