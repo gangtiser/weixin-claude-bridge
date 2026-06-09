@@ -3,6 +3,10 @@
   "version": "2.0.3",
   "description": "WeChat Channel plugin for Claude Code via iLink Bot API",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gangtiser/weixin-claude-bridge.git"
+  },
   "type": "module",
   "bin": {
     "weixin-claude-bridge": "cli.mjs"

@@ -139,6 +139,34 @@ npm run typecheck
 
 ---
 
+## 发布到 npm
+
+本仓库使用 npm Trusted Publishing，通过 GitHub Actions OIDC 发布，不需要 `NPM_TOKEN`。
+
+首次启用时，维护者需要在 npm 账号已登录的环境执行一次：
+
+```bash
+npm trust github weixin-claude-bridge --repo gangtiser/weixin-claude-bridge --file publish.yml --allow-publish
+```
+
+也可以在 npmjs.com 包设置的 Trusted publishing 页面手动配置：
+
+- Provider: GitHub Actions
+- Repository: `gangtiser/weixin-claude-bridge`
+- Workflow filename: `publish.yml`
+- Allowed action: `npm publish`
+
+之后发布新版本：
+
+```bash
+npm version patch
+git push origin main --follow-tags
+```
+
+`v*` tag 会触发 `.github/workflows/publish.yml`，workflow 会运行 `npm ci`、`npm test`、`npm run typecheck`，然后通过 OIDC 执行 `npm publish`。
+
+---
+
 ## 手动 e2e 检查清单
 
 以下步骤需要真实 iOS 微信和有效的 Claude Code 环境，安装后执行：
