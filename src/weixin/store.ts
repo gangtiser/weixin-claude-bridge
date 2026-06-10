@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { channelDir } from "../config.ts";
+import { channelDir, HISTORY_MAX_BYTES } from "../config.ts";
 import type { PendingEvent, ContextEntry, HistoryEntry, AccountData, Allowlist } from "./types.ts";
 
 function p(name: string): string { return path.join(channelDir(), name); }
@@ -73,9 +73,18 @@ export function saveAuth(a: AccountData): Promise<void> { return withStoreLock((
 export function loadAccess(): Allowlist { return readJson<Allowlist>("access.json", { allowed: [], auto_allow_next: false }); }
 export function saveAccessRaw(a: Allowlist): void { atomicWriteJson("access.json", a); }
 
-export function appendHistory(e: HistoryEntry): void {
+export function appendHistory(e: HistoryEntry, maxBytes = HISTORY_MAX_BYTES): void {
   ensureDir();
-  fs.appendFileSync(p("chat_history.jsonl"), JSON.stringify(e) + "\n", { mode: 0o600 });
+  const f = p("chat_history.jsonl");
+  fs.appendFileSync(f, JSON.stringify(e) + "\n", { mode: 0o600 });
+  try {
+    if (fs.statSync(f).size <= maxBytes) return;
+    // 超限压缩：保留最新一半，防止无限增长
+    const lines = fs.readFileSync(f, "utf-8").split("\n").filter(l => l.trim());
+    const tmp = `${f}.tmp.${process.pid}`;
+    fs.writeFileSync(tmp, lines.slice(-Math.ceil(lines.length / 2)).join("\n") + "\n", { mode: 0o600 });
+    fs.renameSync(tmp, f);
+  } catch { /* 压缩失败不影响主流程 */ }
 }
 export function readHistory(limit: number): HistoryEntry[] {
   let raw = "";

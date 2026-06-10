@@ -21,3 +21,8 @@ test("splitText splits on 2000 boundary", () => {
 test("stripMarkdown removes emphasis/code fences", () => {
   assert.equal(stripMarkdown("**bold** and `code`"), "bold and code");
 });
+test("stripMarkdown converts links/images and strips blockquotes", () => {
+  assert.equal(stripMarkdown("[官网](https://x.com)"), "官网 (https://x.com)");
+  assert.equal(stripMarkdown("![图](https://i.png)"), "https://i.png");
+  assert.equal(stripMarkdown("> 引用行"), "引用行");
+});

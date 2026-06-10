@@ -1,6 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resolveMediaSource } from "../src/weixin/media.ts";
+import fs from "node:fs"; import os from "node:os"; import path from "node:path";
+import { resolveMediaSource, cleanupOldMedia } from "../src/weixin/media.ts";
+
+test("cleanupOldMedia removes files past retention, keeps fresh ones", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "wxmedia-"));
+  const old = path.join(dir, "old.jpg"); fs.writeFileSync(old, "x");
+  const past = new Date(Date.now() - 8 * 86_400_000);
+  fs.utimesSync(old, past, past);
+  const fresh = path.join(dir, "new.jpg"); fs.writeFileSync(fresh, "x");
+  cleanupOldMedia(dir);
+  assert.equal(fs.existsSync(old), false);
+  assert.equal(fs.existsSync(fresh), true);
+});
 
 test("resolves nested image_item.media http cdn_url", () => {
   const s = resolveMediaSource({ image_item: { media: { aes_key: "k", cdn_url: "https://cdn/x" } } });

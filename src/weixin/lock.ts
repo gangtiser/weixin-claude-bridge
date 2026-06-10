@@ -5,7 +5,7 @@ import { channelDir, log, logError } from "../config.ts";
 function lockPath(): string { return path.join(channelDir(), "wechat.lock"); }
 
 /** PID 是否存活（非本进程）。EPERM = 存在但无权限发信 → 视为存活；ESRCH = 不存在。 */
-function isAlive(pid: number): boolean {
+export function isAlive(pid: number): boolean {
   if (!pid || pid === process.pid) return false;
   try { process.kill(pid, 0); return true; }
   catch (e: any) { return e?.code === "EPERM"; }

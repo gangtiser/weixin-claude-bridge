@@ -32,7 +32,9 @@ export class WeixinApi implements IWeixinApi {
   }
   async sendMessage(to: string, text: string, contextToken: string) {
     const d = await this.post("ilink/bot/sendmessage", { msg: { from_user_id: "", to_user_id: to, client_id: clientId(), message_type: 2, message_state: 2, context_token: contextToken, item_list: [{ type: 1, text_item: { text } }] } }, 15_000);
-    if (typeof d.ret === "number" && d.ret !== 0) throw new Error(`sendMessage ret=${d.ret} ${d.errmsg ?? ""}`);
+    // 失败可能经 ret 或 errcode 报告；漏判会把失败当成功 → Claude ack 后消息真丢
+    const code = [d.ret, d.errcode].find((c: unknown) => typeof c === "number" && c !== 0);
+    if (code !== undefined) throw new Error(`sendMessage ret=${code} ${d.errmsg ?? ""}`);
   }
   async sendTyping(to: string, contextToken: string) {
     try { await this.post("ilink/bot/sendtyping", { to_user_id: to, status: 1, context_token: contextToken }, 5_000); } catch {}

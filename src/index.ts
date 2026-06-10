@@ -1,10 +1,10 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { WeixinApi } from "./weixin/api.ts";
 import { WeixinChannelClient } from "./weixin/client.ts";
-import { createMcpServer, getPendingPermId, clearPendingPermId } from "./mcp-server.ts";
+import { createMcpServer, takePendingPerm } from "./mcp-server.ts";
 import { parseVerdict } from "./mcp-helpers.ts";
 import * as store from "./weixin/store.ts";
-import { log, logError } from "./config.ts";
+import { REPLAY_MAX, errorText, log, logError } from "./config.ts";
 import { acquireLock, releaseLock } from "./weixin/lock.ts";
 
 async function main() {
@@ -22,27 +22,28 @@ async function main() {
   if (!(await acquireLock())) process.exit(1);   // 单实例锁：接管旧实例（最新启动者胜）；仅当杀不掉旧实例才放弃，避免两进程抢同一账号/写花状态目录
   const api = new WeixinApi(auth);
   const client = new WeixinChannelClient(api);
-  const server = createMcpServer(api, () => store.loadAuth()?.userId);
+  const server = createMcpServer(api, () => store.loadAuth()?.userId, () => client.lastOkPollAt);
+  server.oninitialized = () => client.replayPending(REPLAY_MAX);   // 等 CC 完成 initialize 再重放，过早的通知会被丢
   await server.connect(new StdioServerTransport());
   log("MCP channel 连接就绪");
 
   client.on("message", async ({ content, meta }) => {
-    // 权限 verdict 拦截：仅当回复的 id 与待决请求匹配，才发 verdict、清状态、清出 inbox。
-    // 打错 id 时不清状态（真请求保持开放，等正确回复），按普通消息转发。
-    const pid = getPendingPermId();
-    if (pid) {
+    try {
+      // 权限 verdict：只接受「被发送提示的那个会话」的匹配回复（防白名单他人代批）。
+      // 打错 id / 其他会话的回复不消费请求（真请求保持开放），按普通消息转发。
       const v = parseVerdict(content);
-      if (v && v.request_id === pid) {
+      if (v && meta.chat_id && takePendingPerm(v.request_id, meta.chat_id)) {
         await server.notification({ method: "notifications/claude/channel/permission", params: v as any });
-        clearPendingPermId();
         if (meta.message_id) await store.removePending([meta.message_id]);
         return;
       }
-    }
-    await server.notification({ method: "notifications/claude/channel", params: { content, meta } });
+      await server.notification({ method: "notifications/claude/channel", params: { content, meta } });
+    } catch (e) { logError(`channel 通知失败: ${errorText(e)}`); }   // 通知失败不能炸进程；消息仍在 pending，等周期补投
   });
   client.on("sessionExpired", async () => {
-    await server.notification({ method: "notifications/claude/channel", params: { content: "微信会话已过期，请运行 login 重新扫码。", meta: { sender: "system", chat_id: "system" } } });
+    try {
+      await server.notification({ method: "notifications/claude/channel", params: { content: "微信会话已过期，请运行 login 重新扫码。", meta: { sender: "system", chat_id: "system" } } });
+    } catch (e) { logError(`channel 通知失败: ${errorText(e)}`); }
   });
   client.on("error", (e: unknown) => logError(`client error: ${e}`));
 

@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { CDN_BASE, channelDir, errorText, logError } from "../config.ts";
+import { CDN_BASE, channelDir, errorText, logError, MEDIA_RETENTION_MS } from "../config.ts";
 
 function decryptEcb(data: Buffer, keyB64: string): Buffer {
   const d = crypto.createDecipheriv("aes-128-ecb", Buffer.from(keyB64, "base64"), null);
@@ -30,6 +30,17 @@ function extFor(msgType: string): string {
   return msgType === "image" ? "jpg" : msgType === "voice" ? "silk" : msgType === "video" ? "mp4" : "bin";
 }
 
+/** 删除超过保留期的媒体文件（每次下载顺带清理，防磁盘无限增长）。 */
+export function cleanupOldMedia(dir: string, retentionMs = MEDIA_RETENTION_MS): void {
+  try {
+    const cutoff = Date.now() - retentionMs;
+    for (const f of fs.readdirSync(dir)) {
+      const fp = path.join(dir, f);
+      if (fs.statSync(fp).mtimeMs < cutoff) fs.rmSync(fp, { force: true });
+    }
+  } catch { /* 清理失败不影响下载 */ }
+}
+
 /** 下载并解密一个媒体 item，返回本地文件路径；失败返回 undefined（不阻塞消息）。 */
 export async function downloadMedia(item: any, msgType: string): Promise<string | undefined> {
   const src = resolveMediaSource(item);
@@ -39,9 +50,10 @@ export async function downloadMedia(item: any, msgType: string): Promise<string 
     if (!res.ok) throw new Error(`CDN ${res.status}`);
     const dec = decryptEcb(Buffer.from(await res.arrayBuffer()), src.key);
     const dir = path.join(channelDir(), "media", "inbound");
-    fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     const fp = path.join(dir, `${Date.now()}-${crypto.randomBytes(3).toString("hex")}.${extFor(msgType)}`);
-    fs.writeFileSync(fp, dec);
+    fs.writeFileSync(fp, dec, { mode: 0o600 });
+    cleanupOldMedia(dir);
     return fp;
   } catch (e) { logError(`媒体下载失败: ${errorText(e)}`); return undefined; }
 }

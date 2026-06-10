@@ -19,3 +19,8 @@ test("sendMessage throws on business error ret", async () => {
   const api = new WeixinApi({ token: "t", baseUrl: "https://h", accountId: "a", userId: "u", savedAt: "" }, fakeFetch as any);
   await assert.rejects(() => api.sendMessage("to", "hi", "ctx"), /ret=1/);
 });
+test("sendMessage throws when failure reported via errcode (not silently 'sent')", async () => {
+  const fakeFetch = async () => new Response(JSON.stringify({ errcode: -14, errmsg: "session expired" }), { status: 200 });
+  const api = new WeixinApi({ token: "t", baseUrl: "https://h", accountId: "a", userId: "u", savedAt: "" }, fakeFetch as any);
+  await assert.rejects(() => api.sendMessage("to", "hi", "ctx"), /-14/);
+});

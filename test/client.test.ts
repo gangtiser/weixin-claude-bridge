@@ -42,6 +42,32 @@ test("dedup: same message_id not processed twice", async () => {
   assert.equal(emits.length, 1); assert.equal(store.listPending().length, 1);
 });
 
+const idleApi = { getUpdates: async () => ({ msgs: [], cursor: "", errcode: 0 }), sendMessage: async()=>{}, sendTyping: async()=>{} };
+
+test("replayPending re-emits with replayed flag", async () => {
+  await store.addPending({ messageId: "p1", chatId: "c", senderId: "s", content: "x", meta: { message_id: "p1", chat_id: "c" }, ts: Date.now() });
+  const c = new WeixinChannelClient(idleApi); const emits: any[] = []; c.on("message", e => emits.push(e));
+  c.replayPending(50);
+  assert.equal(emits.length, 1);
+  assert.equal(emits[0].meta.replayed, "true");
+});
+
+test("redeliverStale re-emits stale unacked once, then gated", async () => {
+  await store.addPending({ messageId: "p2", chatId: "c", senderId: "s", content: "x", meta: { message_id: "p2", chat_id: "c" }, ts: Date.now() - 600_000 });
+  const c = new WeixinChannelClient(idleApi); const emits: any[] = []; c.on("message", e => emits.push(e));
+  c.redeliverStale();
+  c.redeliverStale(); // 刚补投过，第二次扫描不应重复
+  assert.equal(emits.length, 1);
+  assert.equal(emits[0].meta.replayed, "true");
+});
+
+test("redeliverStale skips fresh pending (still being processed)", async () => {
+  await store.addPending({ messageId: "p3", chatId: "c", senderId: "s", content: "x", meta: { message_id: "p3", chat_id: "c" }, ts: Date.now() });
+  const c = new WeixinChannelClient(idleApi); const emits: any[] = []; c.on("message", e => emits.push(e));
+  c.redeliverStale();
+  assert.equal(emits.length, 0);
+});
+
 test("errcode -14 emits sessionExpired", async () => {
   const api = { getUpdates: async () => ({ msgs: [], cursor: "", errcode: -14 }), sendMessage: async()=>{}, sendTyping: async()=>{} };
   const c = new WeixinChannelClient(api); let expired = false; c.on("sessionExpired", () => expired = true);

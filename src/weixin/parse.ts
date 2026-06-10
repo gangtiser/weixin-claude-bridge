@@ -20,10 +20,13 @@ export function stripMarkdown(s: string): string {
   return s
     .replace(/```[\s\S]*?```/g, m => m.replace(/```/g, "").trim())
     .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[[^\]]*\]\(([^)]+)\)/g, "$1")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)")
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/\*([^*]+)\*/g, "$1")
     .replace(/^#{1,6}\s+/gm, "")
-    .replace(/^\s*[-*]\s+/gm, "• ");
+    .replace(/^\s*[-*]\s+/gm, "• ")
+    .replace(/^>\s?/gm, "");
 }
 
 export function splitText(text: string, maxLen: number): string[] {

@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sanitizeText } from "../src/config.ts";
+import fs from "node:fs";
+import { sanitizeText, VERSION } from "../src/config.ts";
+
+test("VERSION matches package.json (no hardcoded drift)", () => {
+  const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf-8"));
+  assert.equal(VERSION, pkg.version);
+});
 
 test("sanitizeText redacts Bearer tokens", () => {
   assert.equal(sanitizeText("Authorization: Bearer abc.def-123=="), "Authorization: Bearer [redacted]");
