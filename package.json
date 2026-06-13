@@ -1,6 +1,6 @@
 {
   "name": "weixin-claude-bridge",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "description": "WeChat Channel plugin for Claude Code via iLink Bot API",
   "license": "MIT",
   "repository": {
@@ -19,7 +19,7 @@
     "LICENSE"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "scripts": {
     "build": "esbuild src/index.ts --bundle --format=esm --platform=node --target=node18 --outfile=dist/index.js --external:silk-wasm",

@@ -68,16 +68,67 @@ test("redeliverStale skips fresh pending (still being processed)", async () => {
   assert.equal(emits.length, 0);
 });
 
-test("errcode -14 emits sessionExpired", async () => {
+test("errcode -14 emits sessionExpired (after markReady)", async () => {
   const api = { getUpdates: async () => ({ msgs: [], cursor: "", errcode: -14 }), sendMessage: async()=>{}, sendTyping: async()=>{} };
   const c = new WeixinChannelClient(api); let expired = false; c.on("sessionExpired", () => expired = true);
+  c.markReady();
   await c.pollOnce();
   assert.equal(expired, true);
+});
+
+test("sessionExpired NOT emitted before markReady (pre-initialize notification would be dropped)", async () => {
+  const api = { getUpdates: async () => ({ msgs: [], cursor: "", errcode: -14 }), sendMessage: async()=>{}, sendTyping: async()=>{} };
+  const c = new WeixinChannelClient(api); let n = 0; c.on("sessionExpired", () => n++);
+  assert.equal(await c.pollOnce(), "expired"); // 未 ready：仍返回 expired 退避，但不 emit（否则通知被丢且永不重发）
+  assert.equal(n, 0);
+  c.markReady();
+  await c.pollOnce();
+  assert.equal(n, 1);                          // ready 后才首发
+});
+
+test("sessionExpired re-arms after a successful poll (-14 → ok → -14 emits twice)", async () => {
+  const codes = [-14, 0, -14]; let i = 0;
+  const api = { getUpdates: async () => ({ msgs: [], cursor: "", errcode: codes[i++] }), sendMessage: async()=>{}, sendTyping: async()=>{} };
+  const c = new WeixinChannelClient(api); let n = 0; c.on("sessionExpired", () => n++);
+  c.markReady();
+  await c.pollOnce(); await c.pollOnce(); await c.pollOnce();
+  assert.equal(n, 2);                          // 成功一次重置后，再次过期能再提醒
 });
 
 test("sessionExpired emits only once across repeated -14 polls (no hot-loop flood)", async () => {
   const api = { getUpdates: async () => ({ msgs: [], cursor: "", errcode: -14 }), sendMessage: async()=>{}, sendTyping: async()=>{} };
   const c = new WeixinChannelClient(api); let n = 0; c.on("sessionExpired", () => n++);
+  c.markReady();
   const r1 = await c.pollOnce(); const r2 = await c.pollOnce();
   assert.equal(r1, "expired"); assert.equal(r2, "expired"); assert.equal(n, 1);
+});
+
+test("pollOnce throws on non--14 business errcode, cursor not advanced", async () => {
+  const api = { getUpdates: async () => ({ msgs: [], cursor: "X", errcode: 500 }), sendMessage: async()=>{}, sendTyping: async()=>{} };
+  const c = new WeixinChannelClient(api);
+  await assert.rejects(() => c.pollOnce(), /errcode=500/);
+  assert.equal(store.loadCursor(), "");        // 出错不推进游标
+});
+
+test("ingest without context_token: can_reply=false, no context stored, pending still added", async () => {
+  bindOwner("owner@im.wechat");
+  const msg = { message_id: "mNC", message_type: 1, from_user_id: "owner@im.wechat", item_list: [{ type: 1, text_item: { text: "hi" } }] }; // 无 context_token
+  const api = { getUpdates: async () => ({ msgs: [msg], cursor: "C", errcode: 0 }), sendMessage: async()=>{}, sendTyping: async()=>{} };
+  const c = new WeixinChannelClient(api); const emits: any[] = []; c.on("message", e => emits.push(e));
+  await c.pollOnce();
+  assert.equal(emits[0].meta.can_reply, "false");
+  assert.equal(store.getContext(chatIdFor("owner@im.wechat")), undefined); // 空 token 不写、不覆盖
+  assert.equal(store.listPending()[0]?.messageId, "mNC");                   // 消息照常入 durable inbox
+});
+
+test("ingest image message: media_type meta set, no media_path when source unresolvable", async () => {
+  bindOwner("owner@im.wechat");
+  const msg = { message_id: "mImg", message_type: 1, from_user_id: "owner@im.wechat", context_token: "ctx-img", item_list: [{ type: 2, image_item: {} }] };
+  const api = { getUpdates: async () => ({ msgs: [msg], cursor: "C", errcode: 0 }), sendMessage: async()=>{}, sendTyping: async()=>{} };
+  const c = new WeixinChannelClient(api); const emits: any[] = []; c.on("message", e => emits.push(e));
+  await c.pollOnce();
+  assert.equal(emits[0].meta.msg_type, "image");
+  assert.equal(emits[0].meta.media_type, "image");
+  assert.equal(emits[0].meta.media_path, undefined); // 源不可解析时不带路径，但消息仍投递
+  assert.equal(store.listPending()[0]?.messageId, "mImg");
 });

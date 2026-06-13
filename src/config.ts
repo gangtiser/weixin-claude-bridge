@@ -39,7 +39,8 @@ export function sanitizeText(value: unknown): string {
 }
 
 export function errorText(err: unknown): string {
-  if (err instanceof Error && err.name === "AbortError") return "请求超时";
+  // AbortSignal.timeout() 抛的是 name="TimeoutError" 的 DOMException（非 AbortError），两者都当超时
+  if (err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError")) return "请求超时";
   return sanitizeText(err instanceof Error ? err.message : err);
 }
 

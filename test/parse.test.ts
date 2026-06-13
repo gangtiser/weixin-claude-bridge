@@ -21,6 +21,16 @@ test("splitText splits on 2000 boundary", () => {
 test("stripMarkdown removes emphasis/code fences", () => {
   assert.equal(stripMarkdown("**bold** and `code`"), "bold and code");
 });
+test("stripMarkdown drops code-fence language tag, keeps body", () => {
+  assert.equal(stripMarkdown("```js\nfoo()\n```"), "foo()");   // js 标识不得漏进正文
+  assert.equal(stripMarkdown("```\nbar\n```"), "bar");
+});
+test("extract image/file/video/unknown branches", () => {
+  assert.equal(extractContent({ item_list: [{ type: 2, image_item: {} }] })?.mediaType, "image");
+  assert.match(extractContent({ item_list: [{ type: 4, file_item: { file_name: "a.pdf" } }] })!.content, /a\.pdf/);
+  assert.equal(extractContent({ item_list: [{ type: 5, video_item: {} }] })?.msgType, "video");
+  assert.match(extractContent({ item_list: [{ type: 9 }] })!.content, /未知类型 9/);
+});
 test("stripMarkdown converts links/images and strips blockquotes", () => {
   assert.equal(stripMarkdown("[官网](https://x.com)"), "官网 (https://x.com)");
   assert.equal(stripMarkdown("![图](https://i.png)"), "https://i.png");

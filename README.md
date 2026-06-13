@@ -10,7 +10,7 @@ Claude Code 的微信 Channel 插件。在 iOS 微信向 ClawBot 发消息，消
 
 - **Claude Code v2.1.80+**（权限转发需要 v2.1.81+）
 - **认证方式：** claude.ai 登录 或 Claude Console API key。不支持 Amazon Bedrock、Google Vertex AI 和 Microsoft Foundry。
-- **Node >= 18**（Bun 可选——CLI 启动时优先用 Bun，无则回退到 Node）
+- **Node >= 20**（Bun 可选——CLI 启动时优先用 Bun，无则回退到 Node）
 - **iOS 微信 + ClawBot**（iLink Bot API；仅限 iOS）
 - 可选：`whisper-cpp` + 模型文件，用于语音转录兜底（`WHISPER_MODEL_PATH`）
 
@@ -36,6 +36,9 @@ claude --dangerously-load-development-channels ...
 # 在 Claude Code 会话中执行：
 /plugin marketplace add gangtiser/weixin-claude-bridge
 /plugin install weixin-claude-bridge@gangtiser
+
+# 首次使用需先登录（扫码；终端 QR 乱码时也会打印原始 URL）——未登录时 channel 会启动失败：
+npx weixin-claude-bridge login
 
 # 然后以如下方式启动 Claude Code：
 claude --dangerously-load-development-channels plugin:weixin-claude-bridge@gangtiser
@@ -114,7 +117,8 @@ npx weixin-claude-bridge <command>
 | `sync_buf.json` | 长轮询游标（重启后保留） |
 | `pending_events.json` | 未确认收件箱——启动时重放（0600） |
 | `chat_history.jsonl` | 追加式收发日志（0600） |
-| `media/` | 已下载并解密的媒体文件 |
+| `media/inbound/` | 已下载并解密的媒体文件（登出时随凭据一并清除） |
+| `wechat.lock` | 单实例锁（记录运行实例 pid + 启动时间） |
 
 ---
 
@@ -133,7 +137,7 @@ npx weixin-claude-bridge <command>
 
 ```bash
 npm run build    # esbuild → dist/index.js (silk-wasm external)
-npm test         # tsx --test test/*.test.ts  (33 tests)
+npm test         # tsx --test test/*.test.ts
 npm run typecheck
 ```
 

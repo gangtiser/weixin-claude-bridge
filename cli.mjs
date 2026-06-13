@@ -23,7 +23,10 @@ function install() {
   const entry = { command: "npx", args: ["-y", "weixin-claude-bridge", "start"] };
   const p = resolve(process.cwd(), ".mcp.json");
   let cur = {};
-  try { cur = JSON.parse(readFileSync(p, "utf-8")); } catch {}
+  if (existsSync(p)) {
+    try { cur = JSON.parse(readFileSync(p, "utf-8")); }
+    catch { console.error(`✗ ${p} 不是合法 JSON，已中止以免覆盖你已有的配置。请手动修复后重试。`); process.exit(1); }
+  }
   cur.mcpServers = { ...(cur.mcpServers || {}), wechat: entry };
   writeFileSync(p, JSON.stringify(cur, null, 2) + "\n");
   console.log(`已写入 ${p}\n下一步: claude --dangerously-load-development-channels server:wechat`);

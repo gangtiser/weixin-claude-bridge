@@ -8,6 +8,12 @@ test("getUpdates surfaces errcode", async () => {
   const r = await api.getUpdates("");
   assert.equal(r.errcode, -14); assert.equal(r.cursor, "x");
 });
+test("getUpdates surfaces error via ret even when errcode is 0 (not masked as empty poll)", async () => {
+  const fakeFetch = async () => new Response(JSON.stringify({ errcode: 0, ret: -14, msgs: [], get_updates_buf: "x" }), { status: 200 });
+  const api = new WeixinApi({ token: "t", baseUrl: "https://h", accountId: "a", userId: "u", savedAt: "" }, fakeFetch as any);
+  const r = await api.getUpdates("");
+  assert.equal(r.errcode, -14);   // 否则会话过期被当成正常空轮询、status 显示健康却收不到消息
+});
 test("getUpdates treats TimeoutError as empty update (not failure)", async () => {
   const fakeFetch = async () => { const e = new Error("timed out"); e.name = "TimeoutError"; throw e; };
   const api = new WeixinApi({ token: "t", baseUrl: "https://h", accountId: "a", userId: "u", savedAt: "" }, fakeFetch as any);

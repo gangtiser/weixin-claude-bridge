@@ -90,12 +90,15 @@ export function readHistory(limit: number): HistoryEntry[] {
   let raw = "";
   try { raw = fs.readFileSync(p("chat_history.jsonl"), "utf-8"); } catch { return []; }
   const out: HistoryEntry[] = [];
-  for (const line of raw.split("\n")) { if (line.trim()) try { out.push(JSON.parse(line)); } catch {} }
-  return out.slice(-limit);
+  // 先取末尾 limit 行再 parse：避免为取 30 条而 parse 整个 5MB 文件、同步阻塞长轮询
+  for (const line of raw.split("\n").filter(l => l.trim()).slice(-limit)) { try { out.push(JSON.parse(line)); } catch {} }
+  return out;
 }
 
 export function clearAll(): void {
   for (const f of ["auth.json", "access.json", "context_tokens.json", "sync_buf.json", "pending_events.json", "chat_history.jsonl"]) {
     try { fs.rmSync(p(f), { force: true }); } catch {}
   }
+  // 登出也要清掉已解密的私密媒体（图片/语音/视频及 silk2wav 产物）——否则「已清除凭据」名不副实
+  try { fs.rmSync(p("media"), { recursive: true, force: true }); } catch {}
 }

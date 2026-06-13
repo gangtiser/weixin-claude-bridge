@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { isAllowed } from "./allowlist.ts";
+import { isAllowed, getNickname } from "./allowlist.ts";
 import { extractContent } from "./parse.ts";
 import { downloadMedia } from "./media.ts";
 import { transcribeVoice } from "./voice.ts";
@@ -13,6 +13,7 @@ export interface ChannelMessage { content: string; meta: Record<string, string> 
 
 export class WeixinChannelClient extends EventEmitter {
   private running = false;
+  private ready = false;
   private seen = new Set<string>();
   private sessionExpiredNotified = false;
   private lastEmitAt = new Map<string, number>();
@@ -32,7 +33,8 @@ export class WeixinChannelClient extends EventEmitter {
     const cursor = store.loadCursor();
     const r = await this.api.getUpdates(cursor);
     if (r.errcode === SESSION_EXPIRED_ERRCODE) {
-      if (!this.sessionExpiredNotified) { this.sessionExpiredNotified = true; this.emit("sessionExpired"); }
+      // 首发等 markReady（CC initialize 完成）：过早发的通知会被丢，而 notified 一旦置位就不再重发 → channel 静默死掉
+      if (this.ready && !this.sessionExpiredNotified) { this.sessionExpiredNotified = true; this.emit("sessionExpired"); }
       return "expired";
     }
     if (r.errcode && r.errcode !== 0) throw new Error(`getUpdates errcode=${r.errcode}`);
@@ -55,11 +57,11 @@ export class WeixinChannelClient extends EventEmitter {
     let content = ex.content; let mediaPath: string | undefined;
     const item = msg.item_list.find((i: any) => i.type !== 1);
     if (ex.msgType === "voice") { const t = await transcribeVoice(item?.voice_item, await this.maybeSilk(item)); if (t) content = `[语音转文字] ${t}`; }
-    else if (item) { mediaPath = await downloadMedia(item, ex.msgType); }
+    else if (ex.mediaType && item) { mediaPath = await downloadMedia(item, ex.msgType); }   // 只在 extractContent 判定为媒体类型时下载，避免多 item 的 text 消息误下载杂项 item
 
     const chatId = chatIdFor(senderId);
     const contextToken = msg.context_token || "";
-    const meta: Record<string, string> = { chat_id: chatId, message_id: messageId, sender: senderId.split("@")[0] || senderId, msg_type: ex.msgType, can_reply: contextToken ? "true" : "false" };
+    const meta: Record<string, string> = { chat_id: chatId, message_id: messageId, sender: getNickname(senderId), msg_type: ex.msgType, can_reply: contextToken ? "true" : "false" };
     if (ex.mediaType) meta.media_type = ex.mediaType;
     if (mediaPath) meta.media_path = mediaPath;
 
@@ -78,6 +80,9 @@ export class WeixinChannelClient extends EventEmitter {
     if (item?.voice_item && !item.voice_item.text && process.env.WHISPER_MODEL_PATH) return downloadMedia(item, "voice");
     return undefined;
   }
+
+  /** CC 完成 initialize 后调用：允许首发 sessionExpired（过早发会被丢且 notified 置位后不再重发）。 */
+  markReady(): void { this.ready = true; }
 
   replayPending(limit: number): void {
     const pend = store.listPending().slice(-limit);

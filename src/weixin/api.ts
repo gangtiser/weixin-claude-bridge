@@ -27,7 +27,9 @@ export class WeixinApi implements IWeixinApi {
   async getUpdates(cursor: string) {
     try {
       const d = await this.post("ilink/bot/getupdates", { get_updates_buf: cursor, base_info: { channel_version: "2.1.1" } }, LONG_POLL_TIMEOUT_MS);
-      return { msgs: d.msgs ?? [], cursor: d.get_updates_buf ?? cursor, errcode: d.errcode ?? d.ret ?? 0 };
+      // 失败可能经 ret 或 errcode 报告（与 sendMessage 一致）；只取 errcode 会让 {errcode:0,ret:-14} 被当成正常空轮询
+      const errcode = [d.errcode, d.ret].find((c: unknown) => typeof c === "number" && c !== 0) ?? 0;
+      return { msgs: d.msgs ?? [], cursor: d.get_updates_buf ?? cursor, errcode };
     } catch (e) { if (isTimeout(e)) return { msgs: [], cursor, errcode: 0 }; throw e; }
   }
   async sendMessage(to: string, text: string, contextToken: string) {

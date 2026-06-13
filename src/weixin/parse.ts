@@ -18,7 +18,8 @@ export function extractContent(msg: any): Extracted | null {
 
 export function stripMarkdown(s: string): string {
   return s
-    .replace(/```[\s\S]*?```/g, m => m.replace(/```/g, "").trim())
+    .replace(/```[^\n`]*\n([\s\S]*?)```/g, (_, code) => code.trim())   // 去围栏+语言标识行（否则 ```js 的 js 会漏进正文）
+    .replace(/```/g, "")                                               // 兜底清理残留/不成对围栏
     .replace(/`([^`]+)`/g, "$1")
     .replace(/!\[[^\]]*\]\(([^)]+)\)/g, "$1")
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)")

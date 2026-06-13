@@ -34,6 +34,21 @@ test("takes over a live foreign holder by terminating it (newest wins)", async (
   }
 });
 
+test("does NOT kill a live process whose lock predates boot (PID-reuse guard)", async () => {
+  const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1e9)"], { stdio: "ignore" });
+  try {
+    await sleep(50);
+    // startedAt 早于本次开机 → 该 pid 不可能是我们关机前的旧实例，必是无关进程占用了复用的 pid
+    fs.writeFileSync(lockFile, JSON.stringify({ pid: child.pid, startedAt: new Date(0).toISOString() }));
+    const ok = await acquireLock();
+    assert.equal(ok, true);                                                        // 仍接管（视为 stale）
+    assert.equal(JSON.parse(fs.readFileSync(lockFile, "utf-8")).pid, process.pid); // 锁归我们
+    assert.equal(alive(child.pid!), true);                                         // 关键：无关进程没被误杀
+  } finally {
+    try { child.kill("SIGKILL"); } catch {}
+  }
+});
+
 test("takes over a stale lock (dead pid)", async () => {
   fs.writeFileSync(lockFile, JSON.stringify({ pid: 999999, startedAt: "x" }));
   assert.equal(await acquireLock(), true);

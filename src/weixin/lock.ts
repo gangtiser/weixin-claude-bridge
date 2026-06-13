@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { channelDir, log, logError } from "../config.ts";
 
@@ -9,6 +10,13 @@ export function isAlive(pid: number): boolean {
   if (!pid || pid === process.pid) return false;
   try { process.kill(pid, 0); return true; }
   catch (e: any) { return e?.code === "EPERM"; }
+}
+
+/** 锁是否早于本次开机：若是，其 pid 不可能是我们重启前的旧实例（进程随关机已死），当前同 pid 必是复用，绝不能去 kill。 */
+function predatesBoot(startedAt?: string): boolean {
+  if (!startedAt) return false;
+  const t = Date.parse(startedAt);
+  return Number.isFinite(t) && t < Date.now() - os.uptime() * 1000;
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -42,13 +50,13 @@ export async function acquireLock(): Promise<boolean> {
       return true;
     } catch (e: any) {
       if (e?.code !== "EEXIST") throw e;
-      let cur: { pid?: number } = {};
+      let cur: { pid?: number; startedAt?: string } = {};
       try { cur = JSON.parse(fs.readFileSync(p, "utf-8")); } catch { /* 损坏 → 视为 stale */ }
-      if (cur?.pid && isAlive(cur.pid)) {
+      if (cur?.pid && isAlive(cur.pid) && !predatesBoot(cur.startedAt)) {
         log(`接管运行中的实例 (pid=${cur.pid})`);
         if (!(await terminate(cur.pid))) { logError(`无法结束旧实例 (pid=${cur.pid})，放弃接管以避免双开`); return false; }
       } else {
-        log(`接管 stale 锁 (pid=${cur?.pid ?? "?"})`);
+        log(`接管 stale 锁 (pid=${cur?.pid ?? "?"})`);   // 含 PID 复用：锁早于开机 → 不去 kill 那个无关进程
       }
       try { fs.rmSync(p, { force: true }); } catch { /* ignore，下一轮重试 */ }
     }
